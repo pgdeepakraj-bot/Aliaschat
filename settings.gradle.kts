@@ -19,6 +19,8 @@ dependencyResolutionManagement {
   repositories {
     google()
     mavenCentral()
+    maven { url = java.net.URI("https://storage.zego.im/maven") }
+    maven { url = java.net.URI("https://jitpack.io") }
   }
 }
 

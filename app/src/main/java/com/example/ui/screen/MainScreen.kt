@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.PersonSearch
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -78,6 +80,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.CallSession
 import com.example.data.model.Chat
 import com.example.data.model.UserProfile
+import com.example.ui.call.ZegoCallActivity
 import com.example.ui.theme.ChatCyan
 import com.example.ui.theme.DarkSurfaceElevated
 import com.example.ui.theme.EmeraldDark
@@ -238,6 +241,7 @@ fun MainScreen(
                 1 -> CallsTab(
                     calls = calls,
                     currentUserId = userProfile.userId,
+                    currentUsername = userProfile.username,
                     onStartCall = onStartCall,
                     onStartGeminiLiveCall = onStartGeminiLiveCall
                 )
@@ -438,10 +442,100 @@ private fun ChatsTab(
 private fun CallsTab(
     calls: List<CallSession>,
     currentUserId: String,
+    currentUsername: String,
     onStartCall: (targetUid: String, targetUsername: String, isVideo: Boolean) -> Unit,
     onStartGeminiLiveCall: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()) }
+    var showJoinRoomDialog by remember { mutableStateOf(false) }
+    var roomInput by remember { mutableStateOf("") }
+    var isVideoRoom by remember { mutableStateOf(false) }
+
+    if (showJoinRoomDialog) {
+        val context = androidx.compose.ui.platform.LocalContext.current
+        AlertDialog(
+            onDismissRequest = { showJoinRoomDialog = false },
+            title = {
+                Text(
+                    text = "ZEGOCLOUD Voice / Video Room",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Enter a Call / Room ID to connect with any friend or peer instantly:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = roomInput,
+                        onValueChange = { roomInput = it.filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '-' } },
+                        label = { Text("Call Room ID") },
+                        placeholder = { Text("e.g. room_${currentUsername}") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isVideoRoom) "Mode: Video Call" else "Mode: Voice Call",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = EmeraldPrimary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(onClick = { isVideoRoom = !isVideoRoom }) {
+                            Text(if (isVideoRoom) "Switch to Voice" else "Switch to Video")
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            roomInput = "alias_room_${(1000..9999).random()}"
+                        }
+                    ) {
+                        Text("Generate Random Room ID")
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalRoomId = roomInput.ifBlank { "room_${currentUsername}" }
+                        showJoinRoomDialog = false
+                        if (isVideoRoom) {
+                            ZegoCallActivity.startVideoCall(
+                                context = context,
+                                callId = finalRoomId,
+                                userId = currentUserId,
+                                userName = currentUsername
+                            )
+                        } else {
+                            ZegoCallActivity.startVoiceCall(
+                                context = context,
+                                callId = finalRoomId,
+                                userId = currentUserId,
+                                userName = currentUsername
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                ) {
+                    Text("Join Call Room")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showJoinRoomDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -506,6 +600,84 @@ private fun CallsTab(
                         Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Call", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // ZEGOCLOUD Voice Calling Feature Card
+        item {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showJoinRoomDialog = true }
+                    .testTag("zego_voice_call_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = DarkSurfaceElevated
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(54.dp)
+                            .background(
+                                color = EmeraldPrimary,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Call,
+                            contentDescription = "ZEGOCLOUD Voice",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "ZEGOCLOUD Voice Calling",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Ultra-low latency HD audio with echo cancellation & noise suppression",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = EmeraldLight
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Button(
+                            onClick = {
+                                ZegoCallActivity.startVoiceCall(
+                                    context = context,
+                                    callId = "alias_voice_${System.currentTimeMillis() % 100000}",
+                                    userId = currentUserId,
+                                    userName = currentUsername
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("Voice", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        OutlinedButton(
+                            onClick = { showJoinRoomDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text("Room", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -834,6 +1006,130 @@ private fun ProfileTab(
                 Text("• Real-time call signaling via cloud rules", style = MaterialTheme.typography.bodySmall)
                 Text("• Integrated with Gemini Live & Intelligence", style = MaterialTheme.typography.bodySmall)
             }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        var showZegoConfigDialog by remember { mutableStateOf(false) }
+        val context = androidx.compose.ui.platform.LocalContext.current
+        var currentAppId by remember { mutableStateOf(ZegoCallActivity.getActiveAppId(context)) }
+        var currentAppSign by remember { mutableStateOf(ZegoCallActivity.getActiveAppSign(context)) }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Call,
+                        contentDescription = null,
+                        tint = EmeraldPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("ZEGOCLOUD Voice SDK", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "• App ID: $currentAppId\n• App Sign: ${currentAppSign.take(8)}...${currentAppSign.takeLast(6)}\n• Engine: Ultra-low Latency Voice & Video UIKit",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            ZegoCallActivity.startVoiceCall(
+                                context = context,
+                                callId = "test_voice_${System.currentTimeMillis() % 10000}",
+                                userId = userProfile.userId,
+                                userName = userProfile.username
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                    ) {
+                        Text("Test Voice Call", fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = { showZegoConfigDialog = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Config Keys", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        if (showZegoConfigDialog) {
+            var tempAppId by remember { mutableStateOf(currentAppId.toString()) }
+            var tempAppSign by remember { mutableStateOf(currentAppSign) }
+
+            AlertDialog(
+                onDismissRequest = { showZegoConfigDialog = false },
+                title = { Text("ZEGOCLOUD Credentials", fontWeight = FontWeight.Bold, color = Color.White) },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Configure your ZEGOCLOUD console credentials (from console.zegocloud.com) or use the build defaults:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = tempAppId,
+                            onValueChange = { tempAppId = it.filter { ch -> ch.isDigit() } },
+                            label = { Text("App ID (Numbers)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = tempAppSign,
+                            onValueChange = { tempAppSign = it.trim() },
+                            label = { Text("App Sign (64 chars)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(
+                            onClick = {
+                                ZegoCallActivity.clearCustomCredentials(context)
+                                currentAppId = ZegoCallActivity.getActiveAppId(context)
+                                currentAppSign = ZegoCallActivity.getActiveAppSign(context)
+                                showZegoConfigDialog = false
+                            }
+                        ) {
+                            Text("Reset to Defaults", color = Color(0xFFEF5350))
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (tempAppId.isNotBlank() && tempAppSign.isNotBlank()) {
+                                ZegoCallActivity.saveCredentials(context, tempAppId, tempAppSign)
+                                currentAppId = ZegoCallActivity.getActiveAppId(context)
+                                currentAppSign = ZegoCallActivity.getActiveAppSign(context)
+                            }
+                            showZegoConfigDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                    ) {
+                        Text("Save")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showZegoConfigDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))

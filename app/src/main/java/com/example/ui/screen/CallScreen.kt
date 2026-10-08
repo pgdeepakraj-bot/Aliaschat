@@ -21,6 +21,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -28,8 +31,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VideocamOff
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -241,6 +242,49 @@ fun CallScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // ZEGOCLOUD Voice Call Launcher Button
+                val context = androidx.compose.ui.platform.LocalContext.current
+                androidx.compose.material3.Button(
+                    onClick = {
+                        if (isVideoEnabled) {
+                            com.example.ui.call.ZegoCallActivity.startVideoCall(
+                                context = context,
+                                callId = call.callId,
+                                userId = callViewModel.currentUserId,
+                                userName = callViewModel.currentUsername
+                            )
+                        } else {
+                            com.example.ui.call.ZegoCallActivity.startVoiceCall(
+                                context = context,
+                                callId = call.callId,
+                                userId = callViewModel.currentUserId,
+                                userName = callViewModel.currentUsername
+                            )
+                        }
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = com.example.ui.theme.EmeraldPrimary.copy(alpha = 0.85f)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier
+                        .padding(bottom = 16.dp)
+                        .testTag("zego_call_launch_button")
+                ) {
+                    Icon(
+                        imageVector = if (isVideoEnabled) Icons.Default.Videocam else Icons.Default.Call,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isVideoEnabled) "Switch to ZEGOCLOUD HD Video" else "Switch to ZEGOCLOUD HD Voice",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -278,7 +322,7 @@ fun CallScreen(
                             .testTag("speaker_toggle_button")
                     ) {
                         Icon(
-                            imageVector = if (isSpeakerOn) Icons.Default.VolumeUp else Icons.Default.VolumeDown,
+                            imageVector = if (isSpeakerOn) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
                             contentDescription = "Toggle Speaker",
                             tint = Color.White
                         )

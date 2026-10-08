@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with unique username, display name, and status info.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Auth UID of the user." },
+        "username": { "type": "string", "description": "Unique username handle in lowercase (3-25 alphanumeric or underscore characters)." },
+        "displayName": { "type": "string", "description": "Display name of the user." },
+        "avatarUrl": { "type": "string", "description": "Optional avatar URL or preset avatar identifier." },
+        "statusMessage": { "type": "string", "description": "Status message or about text." },
+        "isOnline": { "type": "boolean", "description": "Online presence status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp when user registered." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last profile update." }
+      },
+      "required": ["userId", "username", "displayName", "createdAt", "updatedAt"]
+    },
+    "UsernameReservation": {
+      "title": "UsernameReservation",
+      "description": "Unique username index mapping username to user UID to prevent duplicate usernames.",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string", "description": "Unique lowercase username." },
+        "userId": { "type": "string", "description": "UID of the user who claimed this username." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of username reservation." }
+      },
+      "required": ["username", "userId", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Conversation between users or with the AI companion.",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string", "description": "Unique chat identifier." },
+        "type": { "type": "string", "enum": ["direct", "group", "ai"], "description": "Chat type." },
+        "memberUids": { "type": "array", "description": "Array of member user IDs." },
+        "memberUsernames": { "type": "array", "description": "Array of member usernames." },
+        "lastMessage": { "type": "string", "description": "Preview text of last message." },
+        "lastMessageSenderId": { "type": "string", "description": "UID of user who sent last message." },
+        "lastMessageSenderUsername": { "type": "string", "description": "Username of last sender." },
+        "lastMessageTime": { "type": "string", "format": "date-time", "description": "Timestamp of last message." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when chat was created." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Timestamp of last update." }
+      },
+      "required": ["chatId", "type", "memberUids", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual chat message or voice note.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique message ID." },
+        "chatId": { "type": "string", "description": "Parent chat ID." },
+        "senderId": { "type": "string", "description": "UID of sender." },
+        "senderUsername": { "type": "string", "description": "Username of sender." },
+        "memberUids": { "type": "array", "description": "Denormalized array of chat member UIDs for local evaluation." },
+        "text": { "type": "string", "description": "Text content of the message." },
+        "type": { "type": "string", "enum": ["text", "voice", "call_log", "ai"], "description": "Message type." },
+        "voiceDurationSeconds": { "type": "integer", "description": "Duration in seconds for voice notes." },
+        "status": { "type": "string", "enum": ["sent", "delivered", "read"], "description": "Delivery status." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of message creation." }
+      },
+      "required": ["id", "chatId", "senderId", "senderUsername", "memberUids", "text", "type", "createdAt"]
+    },
+    "CallSession": {
+      "title": "CallSession",
+      "description": "Audio or video call signaling session between users.",
+      "type": "object",
+      "properties": {
+        "callId": { "type": "string", "description": "Unique call session ID." },
+        "callerId": { "type": "string", "description": "UID of user placing the call." },
+        "callerUsername": { "type": "string", "description": "Username of caller." },
+        "callerName": { "type": "string", "description": "Display name of caller." },
+        "receiverId": { "type": "string", "description": "UID of recipient." },
+        "receiverUsername": { "type": "string", "description": "Username of recipient." },
+        "memberUids": { "type": "array", "description": "Array containing [callerId, receiverId]." },
+        "callType": { "type": "string", "enum": ["audio", "video"], "description": "Audio or video call." },
+        "status": { "type": "string", "enum": ["initiating", "ringing", "connected", "ended", "declined", "missed"], "description": "Call status." },
+        "durationSeconds": { "type": "integer", "description": "Duration of call in seconds." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp when call initiated." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp when call state updated." }
+      },
+      "required": ["callId", "callerId", "callerUsername", "receiverId", "receiverUsername", "memberUids", "callType", "status", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile collection."
+    },
+    "/usernames/{username}": {
+      "schema": { "$ref": "#/entities/UsernameReservation" },
+      "description": "Unique username registry index."
+    },
+    "/chats/{chatId}": {
+      "schema": { "$ref": "#/entities/Chat" },
+      "description": "Chats collection."
+    },
+    "/chats/{chatId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Messages subcollection in a chat."
+    },
+    "/calls/{callId}": {
+      "schema": { "$ref": "#/entities/CallSession" },
+      "description": "Call session signaling collection."
+    }
+  }
+}

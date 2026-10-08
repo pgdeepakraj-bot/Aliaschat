@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUsername(username) {
+      return username is string && username.size() >= 3 && username.size() <= 25 && username.matches('^[a-z0-9_]+$');
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             isValidUsername(data.username) &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50 &&
+             (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500)) &&
+             (!('statusMessage' in data) || (data.statusMessage is string && data.statusMessage.size() <= 200)) &&
+             (!('isOnline' in data) || data.isOnline is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidUsernameReservation(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             isValidUsername(data.username) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidChat(data) {
+      return data.chatId is string && data.chatId.size() > 0 && data.chatId.size() <= 128 &&
+             data.type in ['direct', 'group', 'ai'] &&
+             data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 100 &&
+             data.memberUsernames is list && data.memberUsernames.size() >= 1 && data.memberUsernames.size() <= 100 &&
+             (!('lastMessage' in data) || (data.lastMessage is string && data.lastMessage.size() <= 1000)) &&
+             (!('lastMessageSenderId' in data) || (data.lastMessageSenderId is string && data.lastMessageSenderId.size() <= 128)) &&
+             (!('lastMessageSenderUsername' in data) || (data.lastMessageSenderUsername is string && data.lastMessageSenderUsername.size() <= 50)) &&
+             (!('lastMessageTime' in data) || (data.lastMessageTime is timestamp && data.lastMessageTime <= request.time)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isChatMember(cId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/chats/$(cId)) &&
+             (request.auth.uid in get(/databases/$(database)/documents/chats/$(cId)).data.memberUids);
+    }
+
+    function isValidMessage(data) {
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+             data.chatId is string && data.chatId.size() > 0 && data.chatId.size() <= 128 &&
+             data.senderId is string && data.senderId == request.auth.uid &&
+             data.senderUsername is string && data.senderUsername.size() >= 3 && data.senderUsername.size() <= 25 &&
+             (!('memberUids' in data) || (data.memberUids is list && data.memberUids.size() <= 100)) &&
+             data.text is string && data.text.size() <= 5000 &&
+             data.type in ['text', 'voice', 'call_log', 'ai'] &&
+             (!('voiceDurationSeconds' in data) || data.voiceDurationSeconds is int) &&
+             (!('status' in data) || data.status in ['sent', 'delivered', 'read']) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidCallSession(data) {
+      return data.callId is string && data.callId.size() > 0 && data.callId.size() <= 128 &&
+             data.callerId is string && data.callerId.size() > 0 && data.callerId.size() <= 128 &&
+             data.callerUsername is string && data.callerUsername.size() >= 3 && data.callerUsername.size() <= 25 &&
+             data.receiverId is string && data.receiverId.size() > 0 && data.receiverId.size() <= 128 &&
+             data.receiverUsername is string && data.receiverUsername.size() >= 3 && data.receiverUsername.size() <= 25 &&
+             (!('callerName' in data) || (data.callerName is string && data.callerName.size() <= 50)) &&
+             data.memberUids is list && data.memberUids.size() >= 2 && data.memberUids.size() <= 20 &&
+             data.callType in ['audio', 'video'] &&
+             data.status in ['initiating', 'ringing', 'connected', 'ended', 'declined', 'missed'] &&
+             (!('durationSeconds' in data) || data.durationSeconds is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+
+      allow create: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUserProfile(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'avatarUrl', 'statusMessage', 'isOnline', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // Unique Username Registry
+    match /usernames/{username} {
+      allow get: if isSignedIn() && isValidUsername(username);
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       isValidUsername(username) &&
+                       incoming().username == username &&
+                       incoming().userId == request.auth.uid &&
+                       isValidUsernameReservation(incoming());
+
+      allow update, delete: if false;
+    }
+
+    // Chats
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+
+      allow create: if isSignedIn() &&
+                       isValidId(chatId) &&
+                       incoming().chatId == chatId &&
+                       (request.auth.uid in incoming().memberUids) &&
+                       isValidChat(incoming());
+
+      allow update: if isSignedIn() &&
+                       (request.auth.uid in existing().memberUids) &&
+                       (request.auth.uid in incoming().memberUids) &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidChat(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'lastMessage',
+                         'lastMessageSenderId',
+                         'lastMessageSenderUsername',
+                         'lastMessageTime',
+                         'updatedAt',
+                         'memberUids',
+                         'memberUsernames'
+                       ]);
+
+      allow delete: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+
+      // Subcollection: Messages
+      match /messages/{messageId} {
+        allow get, list: if isChatMember(chatId);
+
+        allow create: if isSignedIn() &&
+                         isChatMember(chatId) &&
+                         isValidId(messageId) &&
+                         incoming().id == messageId &&
+                         incoming().chatId == chatId &&
+                         incoming().senderId == request.auth.uid &&
+                         isValidMessage(incoming());
+
+        allow update: if isSignedIn() &&
+                         isChatMember(chatId) &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().senderId == existing().senderId &&
+                         isValidMessage(incoming()) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+
+        allow delete: if isSignedIn() && resource.data.senderId == request.auth.uid;
+      }
+    }
+
+    // Calls signaling collection
+    match /calls/{callId} {
+      allow get: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+
+      allow create: if isSignedIn() &&
+                       isValidId(callId) &&
+                       incoming().callId == callId &&
+                       incoming().callerId == request.auth.uid &&
+                       (request.auth.uid in incoming().memberUids) &&
+                       isValidCallSession(incoming());
+
+      allow update: if isSignedIn() &&
+                       (request.auth.uid in existing().memberUids) &&
+                       (request.auth.uid in incoming().memberUids) &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().callerId == existing().callerId &&
+                       isValidCallSession(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'status',
+                         'durationSeconds',
+                         'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && (request.auth.uid in resource.data.memberUids);
+    }
+  }
+}

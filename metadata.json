@@ -1,0 +1,6 @@
+{
+  "name": "AliasChat",
+  "description": "Secure WhatsApp-style messaging and calling using private usernames instead of phone numbers, powered by Firebase and Gemini intelligence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
